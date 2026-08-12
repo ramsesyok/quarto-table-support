@@ -1,0 +1,303 @@
+# Quarto Table Support — 仕様書
+
+`design-doc-quarto-template` の統一テーブル記法 `::: {.tbl …}` を視覚的に編集する
+VSCode 拡張。`mkdocs-table-editor` をベースにするが、**出力ルールを全面的に変更**する。
+
+- ベース: `mkdocs-table-editor`（React Webview + TableModel + フォーマット層の分離）
+- 対象記法: `design-doc-quarto-template/AUTHORING.md` §6「表」の `.tbl`
+- 動作環境: 完全オフライン（CDN・外部 API・サーバ不要）
+
+---
+
+## 1. 対象記法（`.tbl`）
+
+`AUTHORING.md` §6 および `template/design-doc.lua` で定義される統一テーブル。
+
+```markdown
+::: {.tbl caption="ユーザ属性一覧" label="tbl-user" widths="20,20,60" merge-cols="1"}
+| 区分   | 属性   | 説明         |
+|--------|--------|--------------|
+| 基本   | 氏名   | 利用者の氏名 |
+| 基本   | 年齢   | 満年齢       |
+:::
+```
+
+### 属性
+
+| 属性 | 意味 | 本拡張での扱い |
+|------|------|----------------|
+| `caption="…"` | キャプション。付けると採番 | 編集可 |
+| `label="tbl-x"` | 相互参照 ID（`tbl-` 始まり必須） | 編集可。先頭 `#` は除去。`tbl-` 始まりでなければ警告 |
+| `widths="20,30,50"` | 列幅（％風でも比率でも可・列数と一致必須） | 列ごとの数値入力 UI |
+| `merge-cols="2,3"` / `"all"` | 指定列を自動 rowspan 結合 | 出力形式として選択（§4） |
+| `.unnumbered` | 番号を出さずキャプションのみ | チェックボックス |
+
+### div 内の構造
+
+- 表が **1 つ** → 通常表
+- 表が **空行区切りで複数** → 分割表（パート）。列数は全パート一致必須、列幅は全パート共通
+- 表本体は **パイプ表** または **グリッド表**（AST レベルでは同じ Table なので混在可）
+
+---
+
+## 2. ブロック検出（`.tbl` をマーカーとする）
+
+旧版の `<!-- table-editor:start … -->` コメントは**廃止**。`.tbl` div 自体をマーカーとする。
+
+カーソル位置から編集対象を次の優先度で決める。
+
+| 優先 | 条件 | 編集対象 ＝ 置換範囲 |
+|------|------|----------------------|
+| ① | カーソルが `::: {.tbl …}` div の内側 | **カーソルのあるパート（空行区切りの表 1 つ）の行範囲のみ** |
+| ② | カーソルが素のパイプ表／グリッド表の上 | その表の行範囲。Apply 時に `::: {.tbl}` で囲む |
+| ③ | 上記いずれでもない | 新規作成。カーソル位置に `.tbl` ブロックを挿入 |
+
+### 検出の規則
+
+- fence のコロンは **3 個以上**（`:::` / `::::` …）。開始 fence と同数以上の `:` の行で閉じる
+- 入れ子（`:::: {.landscape}` の中の `::: {.tbl}`）を正しく走査する
+- **`.landscape` は保持のみ**。外側 div の行には一切触れない。UI に「横向きページ内」と表示するだけ
+- 旧記法 `.split-table` / `.merge-rows` は**検出対象外**（新規は `.tbl` に統一）
+- 開始 fence に対応する終了 fence が見つからない場合はドキュメントを変更せずエラー表示
+
+### パート単位編集の帰結
+
+- **置換するのはそのパートの行だけ**。div の開始/終了行、他パート、コロン数、属性は触らない
+- div 属性は **M=1（パートが 1 つ）のときだけ編集可**。M>1 では読み取り専用表示
+  （属性は div 全体のものなので、変更すると全パートに波及するため）
+- 列数は全パート一致が必須。Apply 時に他パートの列数を数え、不一致なら警告して
+  続行 / 中止を選べるようにする
+
+---
+
+## 3. 出力ルール
+
+### 3.1 結合が無い場合
+
+**パイプ表**を `.tbl` div で囲んで出力する。
+
+```markdown
+::: {.tbl caption="…" label="tbl-…" widths="…"}
+| … |
+|---|
+| … |
+:::
+```
+
+条件: 結合が 1 つも無く、かつヘッダが **ちょうど 1 行**。
+
+### 3.2 結合がある場合
+
+既定は**グリッド表**。`merge-cols` で完全再現できるとシミュレーションで判定できた場合に限り、
+ユーザーが `merge-cols` 出力を選択できる（§4）。
+
+グリッド表の出力規則:
+
+- 列境界 `+---+---+`、ヘッダ終端は `+===+===+`
+- 横結合（colspan）: セル間の `|` を書かない
+- 縦結合（rowspan）: 行境界線のそのセル部分を空白 `+      +` にする
+- 列揃え: ヘッダ終端 `+===+` 行にコロン（`===:` 右 / `:===` 左 / `:===:` 中央）。
+  ヘッダが無い表では**一番上の罫線**に打つ
+- 罫線は**表示幅**（全角=2 / 半角=1）で桁を揃える
+
+> **検証済み（Quarto 同梱 pandoc / `pandoc -f markdown -t native`）**
+>
+> グリッド表の桁は **文字数ではなく表示幅（東アジア全角=2）** で数えられる。
+> 全角文字を 1 文字として桁を合わせた表は 1 セルに潰れ、表示幅で合わせた表だけが
+> 正しく列・ヘッダに分解された。したがって **シリアライザは表示幅で罫線を揃え、
+> パーサも文字インデックスではなく表示桁で走査する**こと。
+>
+> AUTHORING.md §6 のマルチヘッダ例が `RowSpan 2` / `ColSpan 2` / ヘッダ 2 行として
+> 解析されることも確認済み。
+
+### 3.3 ヘッダ行
+
+ヘッダ行数は **0〜N の可変**。
+
+| ヘッダ行数 | 結合 | 出力 |
+|-----------|------|------|
+| 1 | 無し | パイプ表 |
+| 1 | 有り | グリッド表 or merge-cols |
+| 0 または 2 以上 | 問わず | **グリッド表**（パイプ表では表現不可） |
+
+ヘッダ領域内の結合（マルチヘッダの縦結合・横結合）もグリッド表でそのまま表現する。
+
+### 3.4 列揃え
+
+列単位に 左 / 中央 / 右 / 既定 を指定できる。
+
+- パイプ表 → 区切り行（`:---` / `:--:` / `---:`）
+- グリッド表 → ヘッダ終端 `+===+` 行（ヘッダ無しなら最上段の罫線）
+
+### 3.5 セル内改行
+
+`<br>` で入出力する。UI では Alt+Enter で挿入。読み込み時は `<br>` / `<br/>` を改行に戻す。
+グリッド表の行末バックスラッシュ `\` による改行も読み込み時は改行として扱う。
+
+---
+
+## 4. `merge-cols` 再現可能性の判定
+
+`merge-cols` は「縦に連続する同一値を自動で rowspan 結合」する**再生成型**の指定であり、
+エディタ上の任意結合を直接表現するものではない。そのため、**編集中の結合状態が
+`merge-cols` で完全に再現できるかをシミュレーションで判定**し、可能なときだけ選択肢に出す。
+
+### `design-doc.lua` から読み取った実際の挙動
+
+- `merge_body(rows, cols)` は `is_plain_grid` でガードされ、**既に結合を持つ表は何もしない**
+  （＝グリッド表パートは `merge-cols` の影響を受けない）
+- `cols` 省略時は全列を左から順に階層とみなす（`prevcol[c] = c-1`）
+- `merge-cols="2,3"` のように指定した場合、**指定した順が階層の左→右**になる
+- 列 `c` が結合されるのは「上の行と同じテキスト」かつ「`prevcol[c]` が結合済み」のとき
+- **空セルは結合しない**
+- 比較は `pandoc.utils.stringify` による**プレーンテキスト一致**
+- 結合はボディ単位。`merge-cols` は div 内の**全パートに一括適用**される
+
+### 判定アルゴリズム
+
+1. 編集中モデルに colspan > 1 の結合があれば **不可**
+2. 各結合の全被覆セルのテキストが同一でなければ **不可**（`merge-cols` は同一値前提）
+3. 候補となる列集合（結合を持つ列を左→右の順に並べたもの）を作る
+4. モデルを「展開表」（結合セルのテキストを被覆行すべてに複写した素の表）に戻す
+5. 展開表に対し `design-doc.lua` と同じアルゴリズムで `merge-cols` をシミュレートする
+6. 得られた結合マップが編集中モデルと **完全一致**すれば再現可能。
+   一致しなければ不可（意図しない結合が生じている／連鎖ルールで結合されない）
+
+判定不可の場合は理由を UI に表示する:
+
+- 「横方向の結合（colspan）があるため」
+- 「結合されたセルの内容が一致しないため」
+- 「同じ値が連続する箇所が意図せず結合されるため」
+- 「左の列が結合されていないため（連鎖ルール）」
+- 「分割表のため（merge-cols は全パートに影響します）」
+
+### 分割表での扱い
+
+パート数 M>1 のときは `merge-cols` を選択肢から**外し、グリッド表に固定**する。
+`merge-cols` が div 全体に効き、他パートを巻き込むため。
+
+### ラウンドトリップ
+
+`merge-cols` 付きの `.tbl` を開いたときは、同じシミュレーションで**結合を展開して表示**し、
+出力形式の既定を `merge-cols` に戻す。グリッド表で書かれていればグリッド表を既定にする。
+
+---
+
+## 5. TableModel
+
+```ts
+export type CellAlign = 'left' | 'center' | 'right';
+
+export type TableCell = {
+  id: string;
+  text: string;        // 改行は '\n'（出力時に <br> へ）
+  row: number;
+  col: number;
+  rowspan: number;
+  colspan: number;
+  hidden: boolean;     // 結合に吸収されたセル
+};
+
+export type TableColumn = {
+  align?: CellAlign;
+  width?: number;      // widths の値。未指定は undefined
+};
+
+export type TblAttributes = {
+  caption?: string;
+  label?: string;      // 'tbl-' 始まり
+  unnumbered?: boolean;
+  extraClasses: string[];   // .tbl 以外に付いていたクラス（そのまま戻す）
+  extraAttributes: Array<[string, string]>;  // 未知の属性（そのまま戻す）
+};
+
+export type OutputFormat = 'pipeTable' | 'gridTable' | 'mergeCols';
+
+export type TableModel = {
+  id: string;
+  version: number;
+  headerRows: number;  // 0〜N
+  columns: TableColumn[];
+  rows: TableCell[][];
+  attributes: TblAttributes;
+  outputFormat: OutputFormat;
+};
+```
+
+エディタは `TableModel` のみを操作し、記法を知らない。
+
+---
+
+## 6. UI（React Webview）
+
+- 表の表示・セル編集（ダブルクリック）
+- 矩形範囲選択（クリック → Shift+クリック）
+- 行・列の追加 / 削除
+- セル結合 / 結合解除
+- ヘッダ行数の指定（「ここまでがヘッダ」を行単位に）
+- 列ごとの揃え指定
+- 列ごとの幅（`widths`）数値入力。空欄なら自動幅
+- 属性欄: caption / label / unnumbered（M>1 では読み取り専用）
+- 出力形式セレクタ: グリッド表 / merge-cols。再現不可なら merge-cols を無効化し
+  理由をツールチップ表示
+- Excel からの TSV 貼り付け（Ctrl+V、`text/plain` のみ）
+- 生成 Markdown のプレビュー
+- Apply でドキュメントへ反映
+
+---
+
+## 7. ファイル構成
+
+```text
+src/
+  extension.ts
+  model/
+    TableModel.ts
+    normalizeTableModel.ts
+    validateTableModel.ts
+    mergeCells.ts
+    unmergeCell.ts
+    rowColOps.ts
+    parseTsv.ts
+    WebviewMessages.ts
+  formats/
+    cellText.ts              # <br> 変換・エスケープ
+    displayWidth.ts          # 全角=2 の表示幅
+    pipeTable/
+      parsePipeTable.ts
+      serializePipeTable.ts
+      pipeTableAlignment.ts
+    gridTable/
+      parseGridTable.ts
+      serializeGridTable.ts
+    tbl/
+      parseTblAttributes.ts
+      serializeTblBlock.ts
+    mergeCols/
+      simulateMergeCols.ts   # design-doc.lua と同じ結合アルゴリズム
+      canUseMergeCols.ts     # 再現可能性の判定
+      expandMergeCols.ts     # 読み込み時の結合展開
+  markdown-document/
+    findTblBlock.ts          # fence 走査（コロン数・入れ子対応）
+    splitParts.ts            # div 内の空行区切りパート分割
+    findPlainTable.ts        # 素のパイプ表／グリッド表の検出
+    findEditTarget.ts        # 優先度 ①②③ の統合
+    replaceRange.ts
+    generateTableId.ts
+  webview/
+    …
+```
+
+## 8. 対象・コマンド
+
+- 対象ファイル: `.qmd` / `.md`
+- コマンド: `quartoTable.open`（Quarto Table: Open Table Editor）
+
+## 9. 非対応（初版）
+
+- Excel クリップボード HTML（`text/html`）からの結合復元
+- `.landscape` の UI からの付け外し（保持のみ）
+- IPO 図（`.ipo`）
+- 旧記法 `.split-table` / `.merge-rows` の検出・変換
+- 分割表のパート区切り位置の UI からの変更（読み込み・保持のみ）
+- `neoteroi.spantable` / mdx-spanner（廃止）

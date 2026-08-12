@@ -1,0 +1,14 @@
+.vscode/**
+node_modules/**
+src/**
+assets/**
+sample/**
+out/**/*.map
+**/*.test.ts
+**/tsconfig*.json
+vite.config.ts
+vitest.config.ts
+esbuild.mjs
+requirements.md
+AGENTS.md
+.gitignore

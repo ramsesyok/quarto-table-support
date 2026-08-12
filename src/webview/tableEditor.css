@@ -1,0 +1,234 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.loading {
+  padding: 16px;
+  opacity: 0.7;
+}
+
+/* --- ツールバー --- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-group.right {
+  margin-left: auto;
+}
+
+button {
+  padding: 4px 10px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 3px;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+  color: var(--vscode-button-secondaryForeground, inherit);
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+button:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.35));
+}
+
+button.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+button.primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.4));
+  border-radius: 3px;
+  padding: 3px 5px;
+}
+
+input:disabled,
+select:disabled {
+  opacity: 0.5;
+}
+
+input.invalid {
+  border-color: var(--vscode-inputValidation-errorBorder, #d33);
+}
+
+label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: 0.9em;
+}
+
+.hint {
+  opacity: 0.75;
+  font-size: 0.9em;
+}
+
+.hint.error {
+  color: var(--vscode-inputValidation-errorForeground, #d33);
+  opacity: 1;
+}
+
+.message {
+  padding: 6px 10px;
+  border-left: 3px solid var(--vscode-focusBorder, #4a9);
+  background: var(--vscode-textBlockQuote-background, rgba(128, 128, 128, 0.12));
+  white-space: pre-wrap;
+}
+
+/* --- 属性欄 --- */
+
+.attributes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.attributes input[type='text'] {
+  min-width: 180px;
+}
+
+.attributes .checkbox {
+  gap: 4px;
+}
+
+/* --- 表 --- */
+
+.grid-wrap {
+  overflow-x: auto;
+}
+
+table.grid {
+  border-collapse: collapse;
+  min-width: 100%;
+}
+
+table.grid td,
+table.grid th {
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.5));
+  padding: 4px 8px;
+  vertical-align: top;
+  min-width: 80px;
+  cursor: cell;
+}
+
+table.grid tr.col-controls th {
+  border: none;
+  padding: 2px 4px;
+  cursor: default;
+}
+
+.width-input {
+  width: 52px;
+}
+
+.align-select {
+  width: 62px;
+  margin-left: 4px;
+}
+
+table.grid td.is-header {
+  background: var(--vscode-editorWidget-background, rgba(128, 128, 128, 0.15));
+  font-weight: 600;
+}
+
+table.grid td.is-merged {
+  background-image: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 92%,
+    var(--vscode-focusBorder, #4a9) 92%,
+    var(--vscode-focusBorder, #4a9) 100%
+  );
+}
+
+table.grid td.selected {
+  outline: 2px solid var(--vscode-focusBorder, #4a9);
+  outline-offset: -2px;
+}
+
+table.grid textarea {
+  width: 100%;
+  min-height: 3em;
+  resize: vertical;
+}
+
+.cell-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.cell-line {
+  display: block;
+  min-height: 1em;
+}
+
+/* --- プレビュー --- */
+
+.preview {
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  border-radius: 3px;
+}
+
+.preview-title {
+  padding: 4px 8px;
+  background: var(--vscode-editorWidget-background, rgba(128, 128, 128, 0.15));
+  font-size: 0.9em;
+}
+
+.preview pre {
+  margin: 0;
+  padding: 8px;
+  overflow-x: auto;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.status {
+  opacity: 0.7;
+  font-size: 0.9em;
+}
