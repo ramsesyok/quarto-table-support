@@ -2,6 +2,12 @@
 
 ## 未リリース
 
+- セル内で改行できない不具合を修正（[#4](https://github.com/ramsesyok/quarto-table-support/issues/4)）。
+  textarea は Alt+Enter では改行しないため、改行の挿入とキャレット位置の復帰を
+  自前で行うようにした
+- 選択セルで **F2** を押すと編集モードに入るようにした（キャレットは末尾。
+  [#3](https://github.com/ramsesyok/quarto-table-support/issues/3)）
+
 - 列幅（`widths`）の検査を追加（[#2](https://github.com/ramsesyok/quarto-table-support/issues/2)）
   - 合計が 100 を超える／負の値があるときは入力欄を赤くし、Apply を拒否する
   - 空欄が 1 列だけのときは、Apply とプレビューの直前に残り幅（100 − 他列の合計）を

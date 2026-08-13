@@ -230,7 +230,9 @@ export type TableModel = {
 
 ## 6. UI（React Webview）
 
-- 表の表示・セル編集（ダブルクリック）
+- 表の表示・セル編集（ダブルクリック、または選択セルで F2。どちらもキャレットは末尾）
+  - Alt+Enter で改行、Enter か Escape で編集終了
+  - textarea は Alt+Enter では改行しないので、改行の挿入とキャレット復帰は自前で行う
 - 矩形範囲選択（クリック → Shift+クリック）
 - 行・列の追加 / 削除
 - セル結合 / 結合解除
@@ -259,6 +261,7 @@ src/
     normalizeTableModel.ts
     validateTableModel.ts
     columnWidths.ts          # 列幅の合計検査と空欄 1 列の補完
+    cellTextEditing.ts       # セル内改行の挿入（キャレット位置の計算）
     mergeCells.ts
     unmergeCell.ts
     rowColOps.ts
