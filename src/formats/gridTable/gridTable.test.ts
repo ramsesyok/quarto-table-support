@@ -242,6 +242,35 @@ describe('serializeGridTable', () => {
     expect(again.value.rows[2][0].text).toBe(model.rows[2][0].text);
   });
 
+  it('行末の `\\\\`（二重）を 1 つの改行として読み、書き戻しで直す', () => {
+    // `\\` はエスケープされたバックスラッシュになり、改行が消えて文字として出る
+    const src = [
+      '+----------------+--------+',
+      '| 内容           | 備考   |',
+      '+================+========+',
+      '| 受注入力画面\\\\ | 二重   |',
+      '| あかさたな     |        |',
+      '+----------------+--------+'
+    ].join('\n');
+    const parsed = parseGridTable(src);
+    if (!parsed.ok) throw new Error(parsed.message);
+    expect(parsed.value.rows[1][0].text).toBe('受注入力画面\nあかさたな');
+
+    const out = serializeGridTable(parsed.value);
+    expect(out).not.toContain('\\\\');
+    expect(out).toMatch(/受注入力画面\\/);
+  });
+
+  it('モデルの行末にバックスラッシュが残っていても重ねない', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error('parse failed');
+    const model = parsed.value;
+    model.rows[2][0].text = '受注入力画面\\\nあかさたな';
+
+    const out = serializeGridTable(model);
+    expect(out).not.toContain('\\\\');
+  });
+
   it('コード span の中の `<br>` を改行に変えない', () => {
     const src = [
       '+----------+--------------------------------+',

@@ -221,7 +221,11 @@ function collapseInsertedBlanks(lines: string[]): string[] {
  * （入れ子は子の行を 4 桁、折り返しは項目本文の桁まで下げる）。
  */
 export function gridCellLines(text: string): string[] {
-  const raw = text.split('\n').map(l => escapeGridCellLine(l.replace(/\s+$/, '')));
+  // 行末のバックスラッシュは改行の印としてここで付けるもの。モデル側に残っていたら
+  // 落とす（重ねると `\\` ＝エスケープされたバックスラッシュになり、改行が消える）
+  const raw = text
+    .split('\n')
+    .map(l => escapeGridCellLine(l.replace(/\s+$/, '').replace(/\\+$/, '')));
   if (raw.length === 0) return [''];
   const lines = indentListContinuations(insertBlankLinesAroundLists(raw));
   const inList = listBlockFlags(lines);
@@ -264,7 +268,9 @@ export function gridCellTextFromLines(lines: string[]): string {
   const code = protectCodeSpans(joined);
   const parts = code.masked
     .replace(/<br\s*\/?>[ \t]*\n?/gi, HARD_BREAK)
-    .replace(/\\\n/g, HARD_BREAK)
+    // 行末のバックスラッシュは改行。`\\` と重なっていても 1 つの改行として読む
+    // （古い版が二重に書いた表を、開いて書き戻すだけで直せるように）
+    .replace(/\\+\n/g, HARD_BREAK)
     // ソフト改行は空白 1 つ。続きの行の字下げまで持ち込まない
     .replace(/\n[ \t]*/g, ' ')
     .split(HARD_BREAK)

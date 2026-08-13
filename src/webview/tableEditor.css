@@ -209,6 +209,8 @@ table.grid textarea {
 .cell-line {
   display: block;
   min-height: 1em;
+  /* 入れ子リストの字下げが見えるように行頭の空白を潰さない */
+  white-space: pre-wrap;
 }
 
 /* --- プレビュー --- */
