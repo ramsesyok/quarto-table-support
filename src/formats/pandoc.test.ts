@@ -169,6 +169,21 @@ suite('pandoc との整合（pandoc が無い環境ではスキップ）', () =>
     expect(native).not.toMatch(/Str "-"/);
   });
 
+  it('入れ子リストと項目内の折り返しが崩れない', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error(parsed.message);
+    const model = parsed.value;
+    model.rows[2][0].text = '- 果物\n    - りんご\n    - みかん\n- 野菜';
+    model.rows[2][1].text = '- 産地コード\n（5 桁の数字）\n- 等級';
+
+    const native = toNative(serializeGridTable(model));
+    // 入れ子は BulletList の中の BulletList になる
+    expect(native).toMatch(/BulletList[\s\S]*BulletList/);
+    // 折り返しは項目の中の LineBreak。項目が分かれていない
+    expect(native).toContain('LineBreak');
+    expect((native.match(/OrderedList/g) ?? []).length).toBe(0);
+  });
+
   it('セル内改行のある表はグリッド表として出力される（パイプ表の <br> にしない）', () => {
     const src = [
       '| 項目 | 内容 |',

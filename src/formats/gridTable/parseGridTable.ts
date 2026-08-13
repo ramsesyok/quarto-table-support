@@ -16,6 +16,16 @@ import {
   type DisplayLine
 } from './displayLine';
 
+/** セル内の全行に共通する字下げを外す（空行は数えない）。 */
+function dedent(lines: string[]): string[] {
+  const indents = lines
+    .filter(l => l.trim() !== '')
+    .map(l => l.length - l.trimStart().length);
+  if (indents.length === 0) return lines.map(() => '');
+  const common = Math.min(...indents);
+  return lines.map(l => (l.trim() === '' ? '' : l.slice(common)));
+}
+
 /** グリッド表の罫線（`+---+===+`）か。 */
 export function isGridBorderLine(line: string): boolean {
   const s = line.trim();
@@ -154,9 +164,11 @@ export function parseGridTable(source: string, tableId = ''): ParseResult<TableM
           texts.push(sliceByDisplay(line, boundaries[c] + 1, boundaries[c + colspan]));
         }
       }
+      // 行頭の字下げは入れ子リスト・項目内の折り返しに意味があるので、
+      // セル共通の字下げ（罫線の内側に置く空白）だけを外して相対関係を残す。
+      const cellLines = dedent(texts.map(t => t.replace(/\s+$/, '')));
       // 内側の空行は段落の区切りなので残す。前後の空行はセルを縦に埋めるための
       // 余白（他の列のほうが背が高いだけ）なので落とす。
-      const cellLines = texts.map(t => t.trim());
       while (cellLines.length > 0 && cellLines[0] === '') cellLines.shift();
       while (cellLines.length > 0 && cellLines[cellLines.length - 1] === '') cellLines.pop();
       const text = gridCellTextFromLines(cellLines);

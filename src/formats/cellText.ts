@@ -9,6 +9,30 @@
 /** ソフト改行（空白）と区別するための一時マーカー。本文には現れない制御文字を使う。 */
 const HARD_BREAK = '\u0001';
 
+/** コード span を伏せ字にする一時マーカー（HARD_BREAK と別の制御文字）。 */
+const CODE_MARK = String.fromCharCode(2);
+
+/**
+ * コード span（`` `…` ``）を伏せ字にして、中身を書き換えないようにする。
+ *
+ * `` `<br>` `` のように **`<br>` を文字として説明しているセル**があるため
+ * （テンプレートの記法例がまさにそれ）、改行への変換をコード span の中へ
+ * 効かせると本文が壊れる。
+ */
+function protectCodeSpans(text: string): { masked: string; restore: (s: string) => string } {
+  const spans: string[] = [];
+  const masked = text.replace(/`+[^`\n]*`+/g, span => {
+    spans.push(span);
+    return `${CODE_MARK}${spans.length - 1}${CODE_MARK}`;
+  });
+  const restore = (s: string) =>
+    s.replace(
+      new RegExp(`${CODE_MARK}(\\d+)${CODE_MARK}`, 'g'),
+      (_, i: string) => spans[Number(i)] ?? ''
+    );
+  return { masked, restore };
+}
+
 /** Markdown のセル文字列 → モデルのテキスト（`<br>` / 行末 `\` を改行へ）。 */
 export function cellTextFromMarkdown(raw: string): string {
   return raw
@@ -59,50 +83,117 @@ export function isListItemLine(line: string): boolean {
  * pandoc の markdown はリストで段落を中断できない（`lists_without_preceding_blankline`
  * は既定で無効）。`前置き` の直後に `- 項目` と書いても段落の続きになるだけなので、
  * **セルの先頭か空行の後から始まる並び**だけをリストとみなす。
+ *
+ * 字下げした行は項目内の折り返しなのでリストの中に留まる（そこで途切れると、
+ * 折り返しの後ろの `- 項目` を別ブロックと見なせなくなる）。
  */
 function listBlockFlags(lines: string[]): boolean[] {
   const flags: boolean[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const startsBlock = i === 0 || lines[i - 1].trim() === '' || flags[i - 1];
-    flags.push(startsBlock && isListItemLine(lines[i]));
+  let inList = false;
+  let afterBlank = true; // 先頭はブロックの始まり扱い
+  for (const line of lines) {
+    if (line.trim() === '') {
+      inList = false;
+      afterBlank = true;
+      flags.push(false);
+      continue;
+    }
+    if (isListItemLine(line) && (inList || afterBlank)) {
+      inList = true;
+      flags.push(true);
+    } else {
+      // 字下げのある行は項目の続き。無ければ段落に戻る
+      if (!/^\s/.test(line)) inList = false;
+      flags.push(false);
+    }
+    afterBlank = false;
   }
   return flags;
 }
 
 /**
- * 文章行の直後から始まるリストの前に空行を入れる。
+ * 段落とリストの境目へ空行を補う（付録「段落とリストの組み合わせ」の書き方に合わせる）。
  *
- * 空行が無いと pandoc はリストとして解釈せず、`- 項目` が文字のまま出てしまう。
- * エディタ上では空行なしで書けるようにし、書き出すときにここで補う
- * （読み取り側の `collapseBlankBeforeList` が対称に畳む）。
+ * 空行が無いと pandoc は 1 つの段落として読むため、`- 項目` が文字のまま出たり、
+ * リストの後の段落が最後の項目に飲み込まれたりする。エディタ上では空行なしで
+ * 書けるようにし、書き出すときにここで足す（`collapseInsertedBlanks` が対称に畳む）。
+ *
+ * 字下げした行は項目内の折り返しなので、そこには入れない。
  */
-function insertBlankLineBeforeLists(lines: string[]): string[] {
+function insertBlankLinesAroundLists(lines: string[]): string[] {
   const out: string[] = [];
+  let inList = false;
+  let afterBlank = true;
   for (const line of lines) {
-    const prev = out[out.length - 1];
-    const startsAfterText =
-      isListItemLine(line) &&
-      prev !== undefined &&
-      prev.trim() !== '' &&
-      !isListItemLine(prev);
-    if (startsAfterText) out.push('');
+    if (line.trim() === '') {
+      out.push(line);
+      inList = false;
+      afterBlank = true;
+      continue;
+    }
+    // 空行を挟まずに続く行は項目内の折り返しなので、リストの中に留める
+    // （段落にしたいときは書き手が空行を入れる）
+    if (isListItemLine(line) && !inList && !afterBlank) {
+      out.push(''); // 段落 → リスト
+      inList = true;
+    } else if (isListItemLine(line)) {
+      inList = true;
+    }
     out.push(line);
+    afterBlank = false;
   }
   return out;
 }
 
-/** `insertBlankLineBeforeLists` が入れた空行を畳む（エディタ上の見た目を元に戻す）。 */
-function collapseBlankBeforeList(lines: string[]): string[] {
+/**
+ * リスト項目の続き（空行を挟まずに続く字下げの無い行）を、項目本文の桁まで下げる。
+ *
+ * 付録「改行と箇条書きの組み合わせ」の書き方に合わせる（`- ` なら 2 桁、`1. ` なら
+ * 3 桁、入れ子ならその子の本文の桁）。字下げ済みの行は書き手の指定なのでそのまま。
+ */
+function indentListContinuations(lines: string[]): string[] {
+  const out: string[] = [];
+  let contentIndent = '';
+  let inList = false;
+  let afterBlank = true;
+  for (const line of lines) {
+    if (line.trim() === '') {
+      out.push(line);
+      inList = false;
+      afterBlank = true;
+      contentIndent = '';
+      continue;
+    }
+    const marker = line.match(/^(\s*(?:[-*+]|\d+[.)])\s+)/);
+    if (marker && (inList || afterBlank)) {
+      inList = true;
+      contentIndent = ' '.repeat(marker[1].length);
+      out.push(line);
+    } else if (inList && !/^\s/.test(line)) {
+      out.push(contentIndent + line);
+    } else {
+      out.push(line);
+    }
+    afterBlank = false;
+  }
+  return out;
+}
+
+/**
+ * `insertBlankLinesAroundLists` が入れた空行を畳む（エディタ上の見た目を元に戻す）。
+ *
+ * 「その空行を消しても書き出しで同じ位置に戻るか」で判定するので、必ず対称になる。
+ */
+function collapseInsertedBlanks(lines: string[]): string[] {
   const out: string[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const prev = out[out.length - 1];
-    const isInserted =
-      lines[i].trim() === '' &&
-      prev !== undefined &&
-      prev.trim() !== '' &&
-      !isListItemLine(prev) &&
-      isListItemLine(lines[i + 1] ?? '');
-    if (!isInserted) out.push(lines[i]);
+    const next = lines[i + 1];
+    if (lines[i].trim() === '' && out.length > 0 && next !== undefined) {
+      const before = insertBlankLinesAroundLists(out).length;
+      const after = insertBlankLinesAroundLists([...out, next]).length;
+      if (after > before + 1) continue; // 書き出し時に補われる空行なので持たない
+    }
+    out.push(lines[i]);
   }
   return out;
 }
@@ -124,17 +215,21 @@ function collapseBlankBeforeList(lines: string[]): string[] {
  * - リスト項目どうしの間（各項目の末尾に `<br>` が入ってしまう）
  * - 空行の前後（段落の区切り。`\` だけの行になってしまう）
  *
- * 文章行の直後にリストが来るときは、リストとして解釈されるよう空行を補う。
+ * 段落とリストの境目には、そう解釈されるよう空行を補う。
+ *
+ * 行頭の字下げは**入れ子リストと項目内の折り返し**に意味があるのでそのまま残す
+ * （入れ子は子の行を 4 桁、折り返しは項目本文の桁まで下げる）。
  */
 export function gridCellLines(text: string): string[] {
-  const raw = text.split('\n').map(l => escapeGridCellLine(l.trim()));
+  const raw = text.split('\n').map(l => escapeGridCellLine(l.replace(/\s+$/, '')));
   if (raw.length === 0) return [''];
-  const lines = insertBlankLineBeforeLists(raw);
+  const lines = indentListContinuations(insertBlankLinesAroundLists(raw));
   const inList = listBlockFlags(lines);
   return lines.map((line, i) => {
     if (i === lines.length - 1) return line;
     if (line === '' || lines[i + 1] === '') return line;
-    if (inList[i] && inList[i + 1]) return line;
+    // 次がリスト項目なら行送りだけで別項目になる（項目内の折り返しには付ける）
+    if (inList[i + 1]) return line;
     return `${line}\\`;
   });
 }
@@ -147,10 +242,11 @@ export function gridCellLines(text: string): string[] {
  * - 空行の前後・リスト項目どうし … ブロックの区切り → '\n'
  * - 単なる行の続き … ソフト改行 → 空白
  *
- * 文章行とリストの間の空行は、`gridCellLines` が補ったものなので畳んで返す。
+ * 段落とリストの境目の空行は `gridCellLines` が補ったものなので畳んで返す。
+ * 行頭の字下げ（入れ子・項目内の折り返し）は意味があるので残す。
  */
 export function gridCellTextFromLines(lines: string[]): string {
-  const raw = lines.map(l => unescapeGridCell(l).trim());
+  const raw = lines.map(l => unescapeGridCell(l).replace(/\s+$/, ''));
   const inList = listBlockFlags(raw);
 
   // 空行の前後とリスト項目どうしの間は `\` が無くても別ブロック＝改行。
@@ -159,20 +255,20 @@ export function gridCellTextFromLines(lines: string[]): string {
   raw.forEach((line, i) => {
     if (i > 0) {
       const prev = raw[i - 1];
-      const hard =
-        !prev.endsWith('\\') &&
-        (prev === '' || line === '' || (inList[i - 1] && inList[i]));
+      const hard = !prev.endsWith('\\') && (prev === '' || line === '' || inList[i]);
       joined += hard ? HARD_BREAK : '\n';
     }
     joined += line;
   });
 
-  const parts = joined
+  const code = protectCodeSpans(joined);
+  const parts = code.masked
     .replace(/<br\s*\/?>[ \t]*\n?/gi, HARD_BREAK)
     .replace(/\\\n/g, HARD_BREAK)
-    .replace(/\n/g, ' ')
+    // ソフト改行は空白 1 つ。続きの行の字下げまで持ち込まない
+    .replace(/\n[ \t]*/g, ' ')
     .split(HARD_BREAK)
-    .map(part => part.trim());
+    .map(part => code.restore(part).replace(/\s+$/, ''));
 
-  return collapseBlankBeforeList(parts).join('\n').trim();
+  return collapseInsertedBlanks(parts).join('\n').trim();
 }

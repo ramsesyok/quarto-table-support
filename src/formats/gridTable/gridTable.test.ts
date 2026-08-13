@@ -182,6 +182,82 @@ describe('serializeGridTable', () => {
     expect(again.value.rows[2][0].text).toBe('前置き\n- 一つ目\n- 二つ目');
   });
 
+  it('入れ子リストの字下げを保つ', () => {
+    const src = [
+      '+----------------+------------------+',
+      '| 書き方         | セルに書ける内容 |',
+      '+================+==================+',
+      '| 入れ子         | - 果物           |',
+      '|                |     - りんご     |',
+      '|                |     - みかん     |',
+      '|                | - 野菜           |',
+      '+----------------+------------------+'
+    ].join('\n');
+    const parsed = parseGridTable(src);
+    if (!parsed.ok) throw new Error(parsed.message);
+    expect(parsed.value.rows[1][1].text).toBe('- 果物\n    - りんご\n    - みかん\n- 野菜');
+
+    const out = serializeGridTable(parsed.value);
+    expect(out).toMatch(/\|\s{5}- りんご\s*\|/); // 字下げが残る
+    expect(out).not.toMatch(/りんご\\/); // 項目どうしなので `\` は付かない
+    const again = parseGridTable(out);
+    if (!again.ok) throw new Error(again.message);
+    expect(again.value.rows[1][1].text).toBe(parsed.value.rows[1][1].text);
+  });
+
+  it('項目内の折り返しは `\\` を付けて項目本文の桁まで下げる', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error('parse failed');
+    const model = parsed.value;
+    // `<br>` で書かれた折り返しを読むと字下げの無い続き行になる
+    model.rows[2][0].text = '- 産地コード\n（5 桁の数字）\n- 等級';
+    model.rows[2][1].text = '1. 計量する\n（0.1 g 単位）\n2. 記録する';
+
+    const out = serializeGridTable(model);
+    expect(out).toMatch(/- 産地コード\\/);
+    expect(out).toMatch(/\|\s{3}（5 桁の数字）/); // 空白 1 桁＋字下げ 2 桁
+    expect(out).toMatch(/1\. 計量する\\/);
+    expect(out).toMatch(/\|\s{4}（0\.1 g 単位）/); // 空白 1 桁＋字下げ 3 桁
+    // 続き行を段落に切り離さない（切り離すとリストが 2 つに割れる）
+    expect(out).not.toMatch(/産地コード\\\n\|\s+\|/);
+
+    const again = parseGridTable(out);
+    if (!again.ok) throw new Error('reparse failed');
+    expect(again.value.rows[2][0].text).toBe('- 産地コード\n  （5 桁の数字）\n- 等級');
+    // 字下げが付いた状態で安定する
+    expect(serializeGridTable(again.value)).toBe(out);
+  });
+
+  it('リストの後に段落を置くには空行が要る（書いた空行は保つ）', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error('parse failed');
+    const model = parsed.value;
+    model.rows[2][0].text = '- 糖度 13 度以上\n- 重量 300 g 以上\n\nいずれかを満たすこと。';
+
+    const out = serializeGridTable(model);
+    expect(out).not.toMatch(/300 g 以上\\/);
+
+    const again = parseGridTable(out);
+    if (!again.ok) throw new Error('reparse failed');
+    expect(again.value.rows[2][0].text).toBe(model.rows[2][0].text);
+  });
+
+  it('コード span の中の `<br>` を改行に変えない', () => {
+    const src = [
+      '+----------+--------------------------------+',
+      '| 書き方   | セルの中身                     |',
+      '+==========+================================+',
+      '| `<br>`   | 入荷は毎週火曜。<br>休祝日は翌 |',
+      '+----------+--------------------------------+'
+    ].join('\n');
+    const parsed = parseGridTable(src);
+    if (!parsed.ok) throw new Error(parsed.message);
+    // 1 列目は文字としての `<br>`、2 列目は改行として解釈される
+    expect(parsed.value.rows[1][0].text).toBe('`<br>`');
+    expect(parsed.value.rows[1][1].text).toBe('入荷は毎週火曜。\n休祝日は翌');
+    expect(serializeGridTable(parsed.value)).toContain('`<br>`');
+  });
+
   it('リストが絡まない空行（段落の区切り）は往復で保たれる', () => {
     const parsed = parseGridTable(MULTI_HEADER);
     if (!parsed.ok) throw new Error('parse failed');
