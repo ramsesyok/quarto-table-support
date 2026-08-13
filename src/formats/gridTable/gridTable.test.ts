@@ -130,8 +130,6 @@ describe('serializeGridTable', () => {
     const out = serializeGridTable(model);
     expect(out).toMatch(/\|\s*- 一つ目\s*\|/); // `\` 無し
     expect(out).toMatch(/\|\s*1\. 一つ目\s*\|/);
-    // リスト項目でない行の後ろは従来どおり `\` で改行する
-    expect(out).toMatch(/前置き\\/);
 
     const again = parseGridTable(out);
     if (!again.ok) throw new Error('reparse failed');
@@ -140,36 +138,61 @@ describe('serializeGridTable', () => {
     expect(again.value.rows[2][2].text).toBe('前置き\n- 一つ目');
   });
 
-  it('段落の途中から始まる並びはリストにならないので `\\` を残す', () => {
-    // pandoc はリストで段落を中断しない。ここで `\` を落とすと
-    // 項目どうしがソフト改行（＝空白）で繋がり、改行が消えてしまう。
+  it('文章行の直後のリストには空行を補う（無いとリストにならないため）', () => {
     const parsed = parseGridTable(MULTI_HEADER);
     if (!parsed.ok) throw new Error('parse failed');
     const model = parsed.value;
-    model.rows[2][0].text = '前置き\n1. 一つ目\n2. 二つ目';
+    model.rows[2][0].text = '受注入力画面\n1. 一つ目\n2. 二つ目';
 
     const out = serializeGridTable(model);
-    expect(out).toMatch(/前置き\\/);
-    expect(out).toMatch(/1\. 一つ目\\/);
+    // 文章行にもリスト項目にも `\` は付かない
+    expect(out).not.toMatch(/受注入力画面\\/);
+    expect(out).not.toMatch(/一つ目\\/);
+    // 文章行とリストの間に空のセル行が入る
+    const lines = out.split('\n');
+    const textLine = lines.findIndex(l => l.includes('受注入力画面'));
+    const firstItem = lines.findIndex(l => l.includes('1. 一つ目'));
+    expect(firstItem).toBe(textLine + 2);
+    expect(lines[textLine + 1]).toMatch(/^\|\s+\|/);
 
+    // 補った空行は読み戻しで畳む（往復で空行が増えていかない）
     const again = parseGridTable(out);
     if (!again.ok) throw new Error('reparse failed');
-    expect(again.value.rows[2][0].text).toBe('前置き\n1. 一つ目\n2. 二つ目');
+    expect(again.value.rows[2][0].text).toBe('受注入力画面\n1. 一つ目\n2. 二つ目');
+    expect(serializeGridTable(again.value)).toBe(out);
   });
 
-  it('空行を挟めば段落の後でもリストになる（空行は往復で保たれる）', () => {
+  it('自分で空行を挟んでも結果は同じ（読み戻しでは畳む）', () => {
     const parsed = parseGridTable(MULTI_HEADER);
     if (!parsed.ok) throw new Error('parse failed');
-    const model = parsed.value;
-    model.rows[2][0].text = '前置き\n\n- 一つ目\n- 二つ目';
 
-    const out = serializeGridTable(model);
-    // 空行の前後・リスト項目どうしには `\` を付けない
+    const withBlank = parsed.value;
+    withBlank.rows[2][0].text = '前置き\n\n- 一つ目\n- 二つ目';
+    const withoutBlank = parseGridTable(MULTI_HEADER);
+    if (!withoutBlank.ok) throw new Error('parse failed');
+    withoutBlank.value.rows[2][0].text = '前置き\n- 一つ目\n- 二つ目';
+
+    const out = serializeGridTable(withBlank);
+    expect(out).toBe(serializeGridTable(withoutBlank.value));
     expect(out).not.toMatch(/前置き\\/);
     expect(out).not.toMatch(/一つ目\\/);
 
     const again = parseGridTable(out);
     if (!again.ok) throw new Error('reparse failed');
-    expect(again.value.rows[2][0].text).toBe('前置き\n\n- 一つ目\n- 二つ目');
+    expect(again.value.rows[2][0].text).toBe('前置き\n- 一つ目\n- 二つ目');
+  });
+
+  it('リストが絡まない空行（段落の区切り）は往復で保たれる', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error('parse failed');
+    const model = parsed.value;
+    model.rows[2][0].text = '一段落目\n\n二段落目';
+
+    const out = serializeGridTable(model);
+    expect(out).not.toMatch(/一段落目\\/);
+
+    const again = parseGridTable(out);
+    if (!again.ok) throw new Error('reparse failed');
+    expect(again.value.rows[2][0].text).toBe('一段落目\n\n二段落目');
   });
 });

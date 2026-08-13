@@ -155,6 +155,20 @@ suite('pandoc との整合（pandoc が無い環境ではスキップ）', () =>
     expect(native).not.toMatch(/LineBreak[\s\S]{0,80}OrderedList/);
   });
 
+  it('文章行の直後に書いたリストもリストとして解釈される', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error(parsed.message);
+    const model = parsed.value;
+    // エディタ上では空行なしで書ける。シリアライザが空行を補う。
+    model.rows[2][0].text = '受注入力画面\n- あいうえお\n- かきくけこ\n- さしすせそ';
+
+    const native = toNative(serializeGridTable(model));
+    expect(native).toContain('BulletList');
+    // 段落とリストに分かれ、ハイフンが文字のまま残らない
+    expect(native).toContain('Para');
+    expect(native).not.toMatch(/Str "-"/);
+  });
+
   it('セル内改行のある表はグリッド表として出力される（パイプ表の <br> にしない）', () => {
     const src = [
       '| 項目 | 内容 |',
