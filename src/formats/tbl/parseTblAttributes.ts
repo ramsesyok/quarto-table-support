@@ -10,7 +10,10 @@ export type FenceHeader = {
 
 /** `::: {.tbl caption="…" …}` の見出し行を分解する。`.tbl` 以外の div でも使える。 */
 export function parseFenceHeader(line: string): FenceHeader | undefined {
-  const m = /^\s*(:{3,})\s*(.*)$/.exec(line);
+  // 行末の空白（CRLF 由来の `\r` を含む）を落としてから見る。
+  // `.` は `\r` に一致せず、`$` も真の終端でしか一致しないため、
+  // 残したままだと CRLF のドキュメントで fence を取りこぼす。
+  const m = /^\s*(:{3,})\s*(.*)$/.exec(line.replace(/\s+$/, ''));
   if (!m) return undefined;
 
   const colons = m[1].length;

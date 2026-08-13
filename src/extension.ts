@@ -6,6 +6,7 @@ import { validateTableModel } from './model/validateTableModel';
 import { normalizeTableModel } from './model/normalizeTableModel';
 import { findEditTarget, type EditTarget } from './markdown-document/findEditTarget';
 import { buildReplacement, anchorLineOf } from './markdown-document/applyTable';
+import { splitLines } from './markdown-document/splitLines';
 import { generateTableId } from './markdown-document/generateTableId';
 
 /**
@@ -49,7 +50,7 @@ function openTableEditor(context: vscode.ExtensionContext) {
   }
 
   const document = editor.document;
-  const lines = document.getText().split(/\r\n?|\n/);
+  const lines = splitLines(document.getText());
   const found = findEditTarget(lines, editor.selection.active.line, generateTableId());
   if (!found.ok) {
     vscode.window.showErrorMessage(found.message);
@@ -165,7 +166,7 @@ async function applyToDocument(rawModel: TableModel): Promise<ApplyResult> {
     }
   }
 
-  const lines = document.getText().split(/\r\n?|\n/);
+  const lines = splitLines(document.getText());
   const replacement = buildReplacement(lines, target, model);
 
   const edit = new vscode.WorkspaceEdit();
@@ -191,7 +192,7 @@ async function applyToDocument(rawModel: TableModel): Promise<ApplyResult> {
 
   // 行番号がずれたので、いま書いた場所から編集対象を取り直す。
   // これをしないと 2 回目の Apply が別の範囲を書き潰す。
-  const updated = document.getText().split(/\r\n?|\n/);
+  const updated = splitLines(document.getText());
   const refound = findEditTarget(updated, anchorLineOf(replacement), generateTableId());
   if (refound.ok) {
     session = { document, target: refound.value, documentVersion: document.version };
