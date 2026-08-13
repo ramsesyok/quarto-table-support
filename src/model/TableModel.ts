@@ -77,6 +77,16 @@ export function hasMerges(model: TableModel): boolean {
   );
 }
 
+/**
+ * セル内改行を含むか。
+ *
+ * パイプ表は 1 行しか書けず改行が `<br>` になるため、箇条書き・番号付きリストなどの
+ * ブロックをセルに置けない。改行があれば必ずグリッド表で出力する判断に使う。
+ */
+export function hasLineBreaks(model: TableModel): boolean {
+  return model.rows.some(row => row.some(cell => !cell.hidden && cell.text.includes('\n')));
+}
+
 /** 横方向の結合（colspan > 1）があるか。merge-cols では表現できない。 */
 export function hasColspan(model: TableModel): boolean {
   return model.rows.some(row => row.some(cell => !cell.hidden && cell.colspan > 1));

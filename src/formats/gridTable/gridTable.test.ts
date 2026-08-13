@@ -118,4 +118,58 @@ describe('serializeGridTable', () => {
     if (!again.ok) return;
     expect(again.value.rows[2][0].text).toBe('売上\n（税込）');
   });
+
+  it('リスト項目の行には `\\` を付けない（項目末尾に余計な改行が入るため）', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error('parse failed');
+    const model = parsed.value;
+    model.rows[2][0].text = '- 一つ目\n- 二つ目';
+    model.rows[2][1].text = '1. 一つ目\n2. 二つ目';
+    model.rows[2][2].text = '前置き\n- 一つ目';
+
+    const out = serializeGridTable(model);
+    expect(out).toMatch(/\|\s*- 一つ目\s*\|/); // `\` 無し
+    expect(out).toMatch(/\|\s*1\. 一つ目\s*\|/);
+    // リスト項目でない行の後ろは従来どおり `\` で改行する
+    expect(out).toMatch(/前置き\\/);
+
+    const again = parseGridTable(out);
+    if (!again.ok) throw new Error('reparse failed');
+    expect(again.value.rows[2][0].text).toBe('- 一つ目\n- 二つ目');
+    expect(again.value.rows[2][1].text).toBe('1. 一つ目\n2. 二つ目');
+    expect(again.value.rows[2][2].text).toBe('前置き\n- 一つ目');
+  });
+
+  it('段落の途中から始まる並びはリストにならないので `\\` を残す', () => {
+    // pandoc はリストで段落を中断しない。ここで `\` を落とすと
+    // 項目どうしがソフト改行（＝空白）で繋がり、改行が消えてしまう。
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error('parse failed');
+    const model = parsed.value;
+    model.rows[2][0].text = '前置き\n1. 一つ目\n2. 二つ目';
+
+    const out = serializeGridTable(model);
+    expect(out).toMatch(/前置き\\/);
+    expect(out).toMatch(/1\. 一つ目\\/);
+
+    const again = parseGridTable(out);
+    if (!again.ok) throw new Error('reparse failed');
+    expect(again.value.rows[2][0].text).toBe('前置き\n1. 一つ目\n2. 二つ目');
+  });
+
+  it('空行を挟めば段落の後でもリストになる（空行は往復で保たれる）', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error('parse failed');
+    const model = parsed.value;
+    model.rows[2][0].text = '前置き\n\n- 一つ目\n- 二つ目';
+
+    const out = serializeGridTable(model);
+    // 空行の前後・リスト項目どうしには `\` を付けない
+    expect(out).not.toMatch(/前置き\\/);
+    expect(out).not.toMatch(/一つ目\\/);
+
+    const again = parseGridTable(out);
+    if (!again.ok) throw new Error('reparse failed');
+    expect(again.value.rows[2][0].text).toBe('前置き\n\n- 一つ目\n- 二つ目');
+  });
 });

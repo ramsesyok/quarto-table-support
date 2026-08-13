@@ -154,7 +154,12 @@ export function parseGridTable(source: string, tableId = ''): ParseResult<TableM
           texts.push(sliceByDisplay(line, boundaries[c] + 1, boundaries[c + colspan]));
         }
       }
-      const text = gridCellTextFromLines(texts.map(t => t.trim()).filter(t => t !== ''));
+      // 内側の空行は段落の区切りなので残す。前後の空行はセルを縦に埋めるための
+      // 余白（他の列のほうが背が高いだけ）なので落とす。
+      const cellLines = texts.map(t => t.trim());
+      while (cellLines.length > 0 && cellLines[0] === '') cellLines.shift();
+      while (cellLines.length > 0 && cellLines[cellLines.length - 1] === '') cellLines.pop();
+      const text = gridCellTextFromLines(cellLines);
 
       const cell = rows[r][c];
       cell.text = text;
