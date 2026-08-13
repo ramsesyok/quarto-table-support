@@ -23,10 +23,13 @@ export function parseFenceHeader(line: string): FenceHeader | undefined {
   const classes: string[] = [];
   const attributes: Array<[string, string]> = [];
 
-  const tokenRe = /([.#]?[A-Za-z_][\w:-]*)\s*=\s*("([^"]*)"|'([^']*)'|[^\s}]+)|([.#][\w-]+)|(\S+)/g;
+  // 引用符の中では `\"` `\\` をエスケープとして認める（pandoc と同じ扱い）。
+  const tokenRe =
+    /([.#]?[A-Za-z_][\w:-]*)\s*=\s*("((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|[^\s}]+)|([.#][\w-]+)|(\S+)/g;
   for (const t of rest.matchAll(tokenRe)) {
     if (t[1] !== undefined) {
-      const value = t[3] ?? t[4] ?? t[2];
+      const quoted = t[3] ?? t[4];
+      const value = quoted !== undefined ? unescapeAttr(quoted) : t[2];
       attributes.push([t[1], value]);
     } else if (t[5] !== undefined) {
       classes.push(t[5].slice(1));
@@ -34,6 +37,11 @@ export function parseFenceHeader(line: string): FenceHeader | undefined {
   }
 
   return { colons, classes, attributes };
+}
+
+/** 引用符付き属性値のエスケープを解く（`\"` → `"`、`\\` → `\`）。 */
+function unescapeAttr(value: string): string {
+  return value.replace(/\\(.)/g, '$1');
 }
 
 export function isTblFence(header: FenceHeader): boolean {
