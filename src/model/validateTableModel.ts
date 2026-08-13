@@ -1,5 +1,6 @@
 import type { TableModel } from './TableModel';
 import { isValidLabel } from '../formats/tbl/parseTblAttributes';
+import { inspectColumnWidths, WIDTH_TOTAL } from './columnWidths';
 
 export type Validation = {
   errors: string[];
@@ -32,16 +33,24 @@ export function validateTableModel(
     }
   }
 
-  const widths = model.columns.map(c => c.width);
-  const specified = widths.filter(
-    (w): w is number => typeof w === 'number' && Number.isFinite(w)
-  );
-  if (specified.length > 0 && specified.length !== widths.length) {
+  // 空欄 1 列の補完（completeColumnWidths）を通した後の値を検査する
+  const widths = inspectColumnWidths(model);
+  const colLen = model.columns.length;
+  if (widths.hasNegative) {
+    errors.push('列幅に負の値があります。');
+  }
+  if (widths.overflow) {
     errors.push(
-      `列幅は全列に指定するか、全列とも空にしてください（${specified.length}／${widths.length} 列のみ指定されています）。`
+      `列幅の合計が ${widths.total} で ${WIDTH_TOTAL} を超えています（合計 ${WIDTH_TOTAL} に収めてください）。`
     );
   }
-  if (specified.length === widths.length && specified.reduce((a, b) => a + b, 0) <= 0) {
+  if (widths.specifiedCount > 0 && widths.blankCount > 0) {
+    errors.push(
+      `列幅は全列に指定するか、全列とも空にしてください（${widths.specifiedCount}／${colLen} 列のみ指定されています）。` +
+        '空欄が 1 列だけなら残り幅を自動で補完します。'
+    );
+  }
+  if (widths.blankCount === 0 && colLen > 0 && widths.total <= 0) {
     errors.push('列幅の合計が 0 以下です。');
   }
 

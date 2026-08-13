@@ -4,6 +4,7 @@ import type { TableModel } from './model/TableModel';
 import type { EditorContext, FromWebviewMessage, ToWebviewMessage } from './model/WebviewMessages';
 import { validateTableModel } from './model/validateTableModel';
 import { normalizeTableModel } from './model/normalizeTableModel';
+import { completeColumnWidths } from './model/columnWidths';
 import { findEditTarget, type EditTarget } from './markdown-document/findEditTarget';
 import { buildReplacement, anchorLineOf } from './markdown-document/applyTable';
 import { splitLines } from './markdown-document/splitLines';
@@ -145,7 +146,8 @@ async function applyToDocument(rawModel: TableModel): Promise<ApplyResult> {
     };
   }
 
-  const model = normalizeTableModel(rawModel);
+  // 空欄が 1 列だけの列幅は、書き戻す直前に残り幅で埋める
+  const model = completeColumnWidths(normalizeTableModel(rawModel));
 
   const validation = validateTableModel(model, {
     otherPartColumnCounts: target.otherPartColumnCounts

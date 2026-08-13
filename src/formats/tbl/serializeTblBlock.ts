@@ -1,5 +1,5 @@
 import type { TableModel } from '../../model/TableModel';
-import { hasMerges } from '../../model/TableModel';
+import { hasLineBreaks, hasMerges } from '../../model/TableModel';
 import { serializePipeTable } from '../pipeTable/serializePipeTable';
 import { serializeGridTable } from '../gridTable/serializeGridTable';
 import { canUseMergeCols } from '../mergeCols/canUseMergeCols';
@@ -12,19 +12,24 @@ export type SerializeOptions = {
   partCount?: number;
 };
 
-/** 表本体（div の中身）だけを出力する。パート単位の置換で使う。 */
+/**
+ * 表本体（div の中身）だけを出力する。パート単位の置換で使う。
+ *
+ * セル内改行があるときは必ずグリッド表にする。パイプ表では改行が `<br>` になり、
+ * 箇条書き・番号付きリストのようなブロックをセルに置けないため。
+ */
 export function serializeTableBody(model: TableModel, partCount = 1): string {
   const merged = hasMerges(model);
+  const multiline = hasLineBreaks(model);
 
-  if (!merged && model.headerRows === 1) {
+  if (!merged && !multiline && model.headerRows === 1) {
     return serializePipeTable(model);
   }
   if (model.outputFormat === 'mergeCols' && canUseMergeCols(model, partCount).ok) {
-    // merge-cols は「同じ値が縦に並んだ素のパイプ表」に戻して出力する
-    return serializePipeTable(flattenMerges(model));
-  }
-  if (!merged && model.headerRows !== 1) {
-    return serializeGridTable(model);
+    // merge-cols は「同じ値が縦に並んだ素の表」に戻して出力する。
+    // 素のグリッド表でも design-doc.lua は結合してくれる（pandoc で確認済み）。
+    const flat = flattenMerges(model);
+    return multiline ? serializeGridTable(flat) : serializePipeTable(flat);
   }
   return serializeGridTable(model);
 }

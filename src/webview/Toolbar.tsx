@@ -1,6 +1,6 @@
 import type { TableModel, OutputFormat } from '../model/TableModel';
 import type { EditorContext } from '../model/WebviewMessages';
-import { hasMerges } from '../model/TableModel';
+import { hasLineBreaks, hasMerges } from '../model/TableModel';
 import type { MergeColsCheck } from '../formats/mergeCols/canUseMergeCols';
 
 type Props = {
@@ -23,9 +23,10 @@ type Props = {
 export function Toolbar(props: Props) {
   const { model, context, mergeColsCheck } = props;
   const merged = hasMerges(model);
+  const multiline = hasLineBreaks(model);
   const mergeColsAvailable = mergeColsCheck?.ok === true;
 
-  // 結合が無ければ常にパイプ表。結合があるときだけ出力形式を選べる。
+  // 結合が無ければパイプ表かグリッド表かが自動で決まる。結合があるときだけ選べる。
   const showFormatSelector = merged;
 
   return (
@@ -79,7 +80,11 @@ export function Toolbar(props: Props) {
 
       {!showFormatSelector && (
         <div className="toolbar-group">
-          <span className="hint">結合なし → 通常のパイプ表として出力します</span>
+          <span className="hint">
+            {multiline
+              ? 'セル内改行あり → グリッド表として出力します（箇条書きなども書けます）'
+              : '結合なし → 通常のパイプ表として出力します'}
+          </span>
         </div>
       )}
 

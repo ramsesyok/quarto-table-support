@@ -7,6 +7,7 @@ import { serializeGridTable } from './gridTable/serializeGridTable';
 import { parseGridTable } from './gridTable/parseGridTable';
 import { mergeCells } from '../model/mergeCells';
 import { parsePipeTable } from './pipeTable/parsePipeTable';
+import { serializeTableBody } from './tbl/serializeTblBlock';
 
 /**
  * 実際の pandoc に対する検証。
@@ -138,6 +139,91 @@ suite('pandoc との整合（pandoc が無い環境ではスキップ）', () =>
     expect(native).toContain('LineBreak');
     // ソフト改行（＝空白）に落ちていないこと
     expect(native).not.toMatch(/SoftBreak[\s\S]{0,40}\\31234/);
+  });
+
+  it('セル内の箇条書き・番号付きリストがリストとして解釈される', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error(parsed.message);
+    const model = parsed.value;
+    model.rows[2][1].text = '- 一つ目\n- 二つ目';
+    model.rows[2][2].text = '1. 一つ目\n2. 二つ目';
+
+    const native = toNative(serializeGridTable(model));
+    expect(native).toContain('BulletList');
+    expect(native).toContain('OrderedList');
+    // 項目行に `\` を付けていないので、項目末尾に LineBreak が残らない
+    expect(native).not.toMatch(/LineBreak[\s\S]{0,80}OrderedList/);
+  });
+
+  it('文章行の直後に書いたリストもリストとして解釈される', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error(parsed.message);
+    const model = parsed.value;
+    // エディタ上では空行なしで書ける。シリアライザが空行を補う。
+    model.rows[2][0].text = '受注入力画面\n- あいうえお\n- かきくけこ\n- さしすせそ';
+
+    const native = toNative(serializeGridTable(model));
+    expect(native).toContain('BulletList');
+    // 段落とリストに分かれ、ハイフンが文字のまま残らない
+    expect(native).toContain('Para');
+    expect(native).not.toMatch(/Str "-"/);
+  });
+
+  it('入れ子リストと項目内の折り返しが崩れない', () => {
+    const parsed = parseGridTable(MULTI_HEADER);
+    if (!parsed.ok) throw new Error(parsed.message);
+    const model = parsed.value;
+    model.rows[2][0].text = '- 果物\n    - りんご\n    - みかん\n- 野菜';
+    model.rows[2][1].text = '- 産地コード\n（5 桁の数字）\n- 等級';
+
+    const native = toNative(serializeGridTable(model));
+    // 入れ子は BulletList の中の BulletList になる
+    expect(native).toMatch(/BulletList[\s\S]*BulletList/);
+    // 折り返しは項目の中の LineBreak。項目が分かれていない
+    expect(native).toContain('LineBreak');
+    expect((native.match(/OrderedList/g) ?? []).length).toBe(0);
+  });
+
+  it('セル内改行のある表はグリッド表として出力される（パイプ表の <br> にしない）', () => {
+    const src = [
+      '| 項目 | 内容 |',
+      '|------|------|',
+      '| 検証 | x    |'
+    ].join('\n');
+    const parsed = parsePipeTable(src);
+    if (!parsed.ok) throw new Error(parsed.message);
+    const model = parsed.value;
+    model.rows[1][1].text = '- 桁数\n- 必須';
+
+    const body = serializeTableBody(model);
+    expect(body.startsWith('+')).toBe(true);
+
+    const native = toNative(body);
+    expect(native).toContain('BulletList');
+    expect(native).not.toContain('RawInline');
+  });
+
+  it('素のグリッド表でも merge-cols で結合される', () => {
+    // 改行があるときは merge-cols でもグリッド表で出すため、
+    // 「素のグリッド表なら design-doc.lua が結合する」ことが前提になる。
+    // lua フィルタはこのリポジトリに無いので、ここでは pandoc が
+    // 素の（結合を持たない）表として読むところまでを確かめる。
+    const parsed = parsePipeTable(
+      ['| 大分類   | 内容 |', '|----------|------|', '| 受注管理 | a    |', '| 受注管理 | b    |'].join('\n')
+    );
+    if (!parsed.ok) throw new Error(parsed.message);
+    const merged = mergeCells(parsed.value, { startRow: 1, startCol: 0, endRow: 2, endCol: 0 });
+    if (!merged.ok) throw new Error(merged.message);
+    merged.value.outputFormat = 'mergeCols';
+    merged.value.rows[1][1].text = '一行目\n二行目';
+
+    const body = serializeTableBody(merged.value);
+    expect(body.startsWith('+')).toBe(true);
+
+    const native = toNative(body);
+    // 結合は展開済み（＝素の表）なので lua フィルタ側の is_plain_grid ガードを通る
+    expect(native).not.toContain('RowSpan 2');
+    expect(native).toContain('LineBreak');
   });
 
   it('列揃えがヘッダ終端行から伝わる', () => {

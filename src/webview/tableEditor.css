@@ -195,7 +195,10 @@ table.grid td.selected {
 table.grid textarea {
   width: 100%;
   min-height: 3em;
-  resize: vertical;
+  /* 高さは行数に合わせて GridView が設定する。手で掴んで変えられると次の入力で戻る */
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .cell-text {
@@ -206,6 +209,8 @@ table.grid textarea {
 .cell-line {
   display: block;
   min-height: 1em;
+  /* 入れ子リストの字下げが見えるように行頭の空白を潰さない */
+  white-space: pre-wrap;
 }
 
 /* --- プレビュー --- */
