@@ -2,12 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { findEditTarget } from './findEditTarget';
+import { splitLines } from './splitLines';
 
 /**
  * デバッグ用サンプル（sample/tables.qmd）が、意図したとおりに検出されるかを確かめる。
  * F5 で開いたときの体験を壊さないための回帰テストでもある。
+ *
+ * 分割は拡張本体と同じ splitLines を使う。Windows では git が CRLF で
+ * チェックアウトするため、`\n` だけで割ると行末に `\r` が残って結果が変わる。
  */
-const lines = readFileSync(resolve(__dirname, '../../sample/tables.qmd'), 'utf8').split('\n');
+const source = readFileSync(resolve(__dirname, '../../sample/tables.qmd'), 'utf8');
+const lines = splitLines(source);
 
 /** 見出しの行番号（0 始まり）を探す。 */
 function headingLine(text: string): number {

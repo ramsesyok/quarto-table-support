@@ -80,17 +80,28 @@ div の fence 行・他パート・外側の `.landscape` には触れない。
 UI 以外のロジックにユニットテストを書く。純粋な TypeScript 関数を Webview の外で
 テストすることを優先し、手動 UI テストだけに頼らない。
 
-記法まわりを変更したときは、**実際の pandoc で検証**すること:
+記法まわりの検証は `src/formats/pandoc.test.ts` が**本物の pandoc**に対して行う。
+pandoc が無い環境では自動スキップし、CI では `REQUIRE_PANDOC=1` でスキップを禁止する
+（検査が黙って素通りしないように）。新しい記法を足したらここにケースを追加すること。
+
+コミット前は CI と同じ内容を一括で流す:
 
 ```bash
-"/c/Program Files/Quarto/bin/tools/pandoc.exe" -f markdown -t native sample.md
+npm run verify
 ```
 
-テンプレート込みの確認:
+テンプレート込みの手動確認が要るときは:
 
 ```bash
-"/c/Program Files/Quarto/bin/tools/pandoc.exe" -f markdown -t html --lua-filter=../design-doc-quarto-template/template/design-doc.lua sample.qmd
+"/c/Program Files/Quarto/bin/tools/pandoc.exe" -f markdown -t html --lua-filter=../design-doc-quarto-template/template/design-doc.lua sample/tables.qmd
 ```
+
+### 検査を形骸化させないこと
+
+自動検査は「失敗する条件」を必ず確認してから入れる。実績:
+
+- `scripts/check-offline.mjs` … `fetch` / `WebSocket` を含むファイルを渡して exit 1 を確認済み
+- `pandoc.test.ts` … `REQUIRE_PANDOC=1` かつ pandoc 不在で exit 1 を確認済み
 
 ## 品質方針
 

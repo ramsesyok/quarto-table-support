@@ -43,7 +43,10 @@ export function serializeTblBlock(
 export function buildFenceHeader(model: TableModel, partCount = 1): string {
   const parts: string[] = ['.tbl'];
   if (model.attributes.unnumbered) parts.push('.unnumbered');
-  for (const cls of model.attributes.extraClasses) parts.push(`.${cls}`);
+  // クラス名として成立しないものは fence を壊すので落とす
+  for (const cls of model.attributes.extraClasses) {
+    if (/^[\w-]+$/.test(cls)) parts.push(`.${cls}`);
+  }
 
   if (model.attributes.caption) parts.push(`caption="${escapeAttr(model.attributes.caption)}"`);
   if (model.attributes.label && !model.attributes.unnumbered) {
@@ -86,6 +89,16 @@ function flattenMerges(model: TableModel): TableModel {
   return { ...model, rows };
 }
 
+/**
+ * 属性値のエスケープ。
+ *
+ * バックスラッシュを先に処理しないと、末尾が `\` のキャプションで閉じ引用符が
+ * エスケープされ、`.tbl` ブロックごと壊れる（pandoc で確認済み）。
+ * 改行・タブが混ざっても fence が壊れるので空白へ潰す。
+ */
 function escapeAttr(value: string): string {
-  return value.replace(/"/g, '\\"');
+  return value
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
 }

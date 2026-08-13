@@ -136,6 +136,37 @@ npm test
 npm run package
 ```
 
+### 一括検証（CI と同じ内容）
+
+```bash
+npm run verify
+```
+
+型チェック → ユニットテスト → ビルド → オフライン検査 → 本番依存の脆弱性チェック
+を順に実行します。個別に走らせることもできます。
+
+| コマンド | 内容 |
+|----------|------|
+| `npm test` | ユニットテスト（pandoc があれば pandoc 連携テストも実行） |
+| `npm run typecheck` | 拡張ホストと Webview の型チェック |
+| `npm run check:offline` | 配布物に通信 API・外部 URL が無いことを検査 |
+| `npm run check:audit` | 本番依存の脆弱性（0 件必須） |
+
+`src/formats/pandoc.test.ts` はグリッド表の記法が pandoc の解釈と一致するかを
+**本物の pandoc** に通して確かめます。pandoc が無い環境では自動でスキップされるので、
+オフライン環境でも `npm test` は通ります。特定の pandoc を使いたいときは環境変数
+`PANDOC` にパスを指定してください。
+
+### CI
+
+`.github/workflows/ci.yml` で GitHub Actions が動きます（push / pull request / 手動実行）。
+
+| ジョブ | 内容 |
+|--------|------|
+| テスト | Ubuntu・Windows × Node 20・22 の 4 通りで型チェック・テスト・ビルド・オフライン検査。Linux では pandoc を入れて pandoc 連携テストを必ず実行 |
+| 脆弱性チェック | 本番依存は 0 件必須。開発依存は参考表示のみ |
+| VSIX の生成 | パッケージして成果物としてアップロード |
+
 ### デバッグ（F5）
 
 `F5`（**Run Extension**）で Extension Development Host が起動します。起動前に

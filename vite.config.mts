@@ -1,6 +1,9 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
+
+/** ESM では __dirname が使えないので、設定ファイルからの相対で解決する。 */
+const here = (relative: string) => fileURLToPath(new URL(relative, import.meta.url))
 
 export default defineConfig({
   plugins: [react()],
@@ -10,12 +13,12 @@ export default defineConfig({
   },
   build: {
     lib: {
-      entry: path.resolve(__dirname, 'src/webview/main.tsx'),
+      entry: here('./src/webview/main.tsx'),
       formats: ['iife'],
       name: 'QuartoTableWebview',
       fileName: () => 'assets/main.js'
     },
-    outDir: path.resolve(__dirname, 'out/webview'),
+    outDir: here('./out/webview'),
     emptyOutDir: true,
     rollupOptions: {
       output: {
@@ -25,11 +28,5 @@ export default defineConfig({
     },
     minify: process.env.NODE_ENV === 'production' ? 'esbuild' : false,
     sourcemap: process.env.NODE_ENV !== 'production'
-  },
-  resolve: {
-    alias: {
-      '@model': path.resolve(__dirname, 'src/model'),
-      '@formats': path.resolve(__dirname, 'src/formats')
-    }
   }
 })

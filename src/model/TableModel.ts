@@ -70,14 +70,6 @@ export type ParseResult<T> =
   | { ok: true; value: T }
   | { ok: false; message: string };
 
-export function rowCount(model: TableModel): number {
-  return model.rows.length;
-}
-
-export function colCount(model: TableModel): number {
-  return model.columns.length;
-}
-
 /** 結合（rowspan/colspan > 1）が 1 つでもあるか。 */
 export function hasMerges(model: TableModel): boolean {
   return model.rows.some(row =>
@@ -102,25 +94,3 @@ export function makeCell(row: number, col: number, text = ''): TableCell {
   };
 }
 
-/** 指定位置を覆っている（＝表示されている）セルを返す。 */
-export function anchorCellAt(
-  model: TableModel,
-  row: number,
-  col: number
-): TableCell | undefined {
-  for (let r = 0; r <= row; r++) {
-    for (let c = 0; c <= col; c++) {
-      const cell = model.rows[r]?.[c];
-      if (!cell || cell.hidden) continue;
-      if (
-        r <= row &&
-        row < r + cell.rowspan &&
-        c <= col &&
-        col < c + cell.colspan
-      ) {
-        return cell;
-      }
-    }
-  }
-  return undefined;
-}
