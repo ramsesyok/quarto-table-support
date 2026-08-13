@@ -1,5 +1,12 @@
 # 変更履歴
 
+## 未リリース
+
+- 列幅（`widths`）の検査を追加（[#2](https://github.com/ramsesyok/quarto-table-support/issues/2)）
+  - 合計が 100 を超える／負の値があるときは入力欄を赤くし、Apply を拒否する
+  - 空欄が 1 列だけのときは、Apply とプレビューの直前に残り幅（100 − 他列の合計）を
+    自動で入れる
+
 ## 0.1.0 — ベータ版（初回リリース）
 
 `design-doc-quarto-template` の統一テーブル記法 `::: {.tbl …}` を視覚的に編集する

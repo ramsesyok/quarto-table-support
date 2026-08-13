@@ -3,6 +3,7 @@ import type { TableModel, CellAlign } from '../model/TableModel';
 import type { EditorContext, ToWebviewMessage } from '../model/WebviewMessages';
 import { hasMerges } from '../model/TableModel';
 import { normalizeTableModel } from '../model/normalizeTableModel';
+import { completeColumnWidths } from '../model/columnWidths';
 import { mergeCells, normalizeRange, type CellRange } from '../model/mergeCells';
 import { unmergeCell } from '../model/unmergeCell';
 import { insertRow, deleteRow, insertColumn, deleteColumn } from '../model/rowColOps';
@@ -66,10 +67,12 @@ export function TableEditor() {
 
   const preview = useMemo(() => {
     if (!model || !context) return '';
+    // 空欄 1 列の列幅は、書き戻しと同じく残り幅で埋めた姿を見せる
+    const shown = completeColumnWidths(model);
     const wholeBlock = context.kind !== 'tblPart' || context.partCount === 1;
     return wholeBlock
-      ? serializeTblBlock(model, { partCount: context.partCount })
-      : serializeTableBody(model, context.partCount);
+      ? serializeTblBlock(shown, { partCount: context.partCount })
+      : serializeTableBody(shown, context.partCount);
   }, [model, context]);
 
   if (!model || !context) {
