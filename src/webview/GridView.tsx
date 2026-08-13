@@ -29,10 +29,18 @@ export function GridView({
   /** 次の描画でキャレットを置く位置。textarea は再描画で末尾へ飛ぶので自分で戻す。 */
   const caretRef = useRef<number | undefined>(undefined);
 
+  // 描画のたびに、入力欄の高さを中身の行数へ合わせ、必要ならキャレットを戻す。
+  // 改行しても行が隠れないようにするため（高さ固定だと下の行が見えなくなる）。
   useLayoutEffect(() => {
-    const at = caretRef.current;
     const el = textareaRef.current;
-    if (at === undefined || !el) return;
+    if (!el) return;
+
+    el.style.height = 'auto';
+    // scrollHeight は枠線を含まないので、border-box での不足ぶんを足す
+    el.style.height = `${el.scrollHeight + (el.offsetHeight - el.clientHeight)}px`;
+
+    const at = caretRef.current;
+    if (at === undefined) return;
     caretRef.current = undefined;
     el.setSelectionRange(at, at);
   });
