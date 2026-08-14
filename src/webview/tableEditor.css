@@ -157,6 +157,15 @@ table.grid th {
   cursor: cell;
 }
 
+/*
+ * Shift+クリックの範囲選択やセルをまたぐドラッグで、ブラウザ標準のテキスト選択が
+ * 青く塗られるのを止める。列幅・揃えのヘッダ行は対象外（入力欄が使いにくくなる）。
+ * 文字を選びたいときは編集モードに入る（textarea は下で選択可に戻している）。
+ */
+table.grid td {
+  user-select: none;
+}
+
 table.grid tr.col-controls th {
   border: none;
   padding: 2px 4px;
@@ -199,6 +208,8 @@ table.grid textarea {
   resize: none;
   overflow: hidden;
   box-sizing: border-box;
+  /* セルの user-select: none を打ち消す（編集中は普通に選択・コピーできる） */
+  user-select: text;
 }
 
 .cell-text {

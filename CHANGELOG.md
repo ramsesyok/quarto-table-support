@@ -14,6 +14,9 @@
   [#3](https://github.com/ramsesyok/quarto-table-support/issues/3)）
 - 編集中の入力欄が、中身の行数に合わせて自動で伸縮するようにした
   （改行したときに下の行が隠れないように）
+- Shift+クリックの範囲選択やセルをまたぐドラッグで、ブラウザ標準のテキスト選択が
+  青く塗られないようにした（範囲選択と紛らわしいため）。編集モードでは従来どおり
+  文字を選択・コピーできる
 
 ### 列幅（`widths`）の検査（[#2](https://github.com/ramsesyok/quarto-table-support/issues/2)）
 
