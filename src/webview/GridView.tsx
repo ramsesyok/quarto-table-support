@@ -50,14 +50,21 @@ export function GridView({
     setEditing({ row, col });
   };
 
-  // F2 で選択中のセルを編集モードにする（Excel と同じくキャレットは末尾）
+  // F2 で選択中のセルを編集モードにする（Excel と同じくキャレットは末尾）。
+  // Escape は選択の解除（表全体を置き換える貼り付けへ戻る道でもある）。
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'F2' || editing) return;
-      const target = event.target as HTMLElement | null;
-      const tag = target?.tagName;
+      if (editing) return;
+      const tag = (event.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (!range) return;
+
+      if (event.key === 'Escape') {
+        if (!selection) return;
+        event.preventDefault();
+        onSelect(undefined);
+        return;
+      }
+      if (event.key !== 'F2' || !range) return;
       const cell = model.rows[range.startRow]?.[range.startCol];
       if (!cell || cell.hidden) return;
       event.preventDefault();
@@ -65,7 +72,7 @@ export function GridView({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [model, range, editing]);
+  }, [model, range, editing, selection, onSelect]);
 
   const inSelection = (row: number, col: number) =>
     !!range &&
@@ -213,9 +220,12 @@ export function GridView({
       )}
 
       <p className="hint">
-        クリックで選択・Shift+クリックで範囲選択・ダブルクリックまたは F2 で編集
-        （Alt+Enter で改行・Enter か Escape で編集終了）。
-        Excel からは Ctrl+V で貼り付けられます。
+        クリックで選択・Shift+クリックで範囲選択・Escape で選択解除・ダブルクリックまたは
+        F2 で編集（Alt+Enter で改行・Enter か Escape で編集終了）。
+      </p>
+      <p className="hint">
+        選択セルは Ctrl+C でコピー、Ctrl+V で選択位置へ貼り付け（1 つの値なら選択範囲を
+        すべて埋めます）。選択していないときの Ctrl+V は Excel の表を丸ごと取り込みます。
       </p>
     </div>
   );
