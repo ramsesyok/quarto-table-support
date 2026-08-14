@@ -2,7 +2,7 @@
   "name": "quarto-table-support",
   "displayName": "Quarto Table Support",
   "description": "Visual editor for the Quarto unified table syntax (::: {.tbl}) used by design-doc-quarto-template",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "ramsesyok",
   "license": "MIT",
   "repository": {
