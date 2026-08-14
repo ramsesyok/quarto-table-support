@@ -7,7 +7,8 @@ import { completeColumnWidths } from '../model/columnWidths';
 import { mergeCells, normalizeRange, type CellRange } from '../model/mergeCells';
 import { unmergeCell } from '../model/unmergeCell';
 import { insertRow, deleteRow, insertColumn, deleteColumn } from '../model/rowColOps';
-import { parseTsv } from '../model/parseTsv';
+import { parseTsv, splitTsv } from '../model/parseTsv';
+import { buildTsv, pasteCellsAt } from '../model/tsvClipboard';
 import { canUseMergeCols } from '../formats/mergeCols/canUseMergeCols';
 import { serializeTableBody, serializeTblBlock } from '../formats/tbl/serializeTblBlock';
 import { vscode } from './vscodeApi';
@@ -40,12 +41,46 @@ export function TableEditor() {
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
+  // 入力欄・編集中のセルでは、クリップボード操作をブラウザに任せる
+  const inTextField = (event: ClipboardEvent) => {
+    const tag = (event.target as HTMLElement | null)?.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA';
+  };
+
+  useEffect(() => {
+    const onCopy = (event: ClipboardEvent) => {
+      if (inTextField(event) || !selection || !model) return;
+      event.preventDefault();
+      event.clipboardData?.setData('text/plain', buildTsv(model, selection));
+      setMessage('選択したセルをコピーしました。');
+    };
+    window.addEventListener('copy', onCopy);
+    return () => window.removeEventListener('copy', onCopy);
+  }, [model, selection]);
+
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (inTextField(event)) return;
       const text = event.clipboardData?.getData('text/plain');
-      if (!text || !text.includes('\t')) return;
+      if (!text) return;
+
+      // 選択があれば、その左上を起点に貼る（Excel と同じ）
+      if (selection && model) {
+        event.preventDefault();
+        const result = pasteCellsAt(model, splitTsv(text.replace(/\r\n?/g, '\n').replace(/\n$/, '')), selection);
+        setModel(result.model);
+        setSelection(result.range);
+        setMessage(
+          result.skipped > 0
+            ? `貼り付けました（結合セル ${result.skipped} 個ぶんは書き込めないため捨てました）。`
+            : '貼り付けました。表全体を置き換えるには Escape で選択を解除してから貼り付けてください。'
+        );
+        return;
+      }
+
+      // 選択が無いときは表全体の置き換え。よそからコピーした文章で表を潰さないよう、
+      // 表らしさ（タブ区切り）がある場合だけ受け付ける
+      if (!text.includes('\t')) return;
       event.preventDefault();
       setModel(current => {
         const pasted = parseTsv(text, current?.id ?? '');
@@ -58,7 +93,7 @@ export function TableEditor() {
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, []);
+  }, [model, selection]);
 
   const mergeColsCheck = useMemo(
     () => (model ? canUseMergeCols(model, context?.partCount ?? 1) : undefined),

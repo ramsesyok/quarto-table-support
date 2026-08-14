@@ -32,7 +32,7 @@ export function parseTsv(tsv: string, tableId = ''): TableModel {
 }
 
 /** TSV を行×セルへ。`"…"` で囲まれたセル内の改行・タブはセルの一部として扱う。 */
-function splitTsv(text: string): string[][] {
+export function splitTsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
